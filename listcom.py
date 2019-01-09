@@ -1,7 +1,5 @@
-keroro = [1,2,3,4,5]
+import pandas as pd
 
-sutandi = [str((kurapika * 2)) + ' Lirakas' for kurapika in keroro]
-print(sutandi)
+dfPokemon = pd.read_csv('dataPokemon.csv')
 
-supriman = list(map(lambda cuy : str((cuy * 2)) + ' Lirakas', keroro))
-print(supriman)
+print(dfPokemon.describe().drop(['#','Generation'],axis=1).columns)

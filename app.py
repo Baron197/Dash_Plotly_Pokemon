@@ -3,6 +3,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 import numpy as np
+from plotly import tools
 from dash.dependencies import Input, Output
 from categoryplot import dfPokemon, getPlot
 
@@ -19,6 +20,12 @@ disabledEsti = {
     'Sum': False,
     'Average': False,
     'Standard Deviation': False
+}
+
+subplots_hist = {
+    'All': [1,1],
+    'Generation': [3,2],
+    'Legendary': [1,2]
 }
 
 app = dash.Dash(__name__)
@@ -120,6 +127,32 @@ app.layout = html.Div(children=[
                     id='pieChart'
                 )
             ])
+        ]),
+        dcc.Tab(label='Histogram', value='tab-5',children=[
+            html.Div([
+                html.H1('Histogram Pokemon', className='h1'),
+                html.Div(children=[
+                    html.Div([
+                        html.P('Column :'),
+                        dcc.Dropdown(
+                            id='colFilterHist',
+                            options=[{'label': i, 'value': i} for i in dfPokemon.columns[4:11]],
+                            value=dfPokemon.columns[4]
+                        )
+                    ],className='col-4'),
+                    html.Div([
+                        html.P('Category :'),
+                        dcc.Dropdown(
+                            id='catFilterHist',
+                            options=[{'label': i, 'value': i} for i in ['All', 'Generation', 'Legendary']],
+                            value='All'
+                        )
+                    ],className='col-4')
+                ],className='row'),
+                dcc.Graph(
+                    id='histogramPlot'
+                )
+            ])
         ])
     ], style={
         'fontFamily': 'system-ui'
@@ -187,6 +220,97 @@ def update_graph_pie(cat,esti,col):
 )
 def update_ddl_col(esti) :
     return disabledEsti[esti]
+
+@app.callback(
+    Output('histogramPlot', 'figure'),
+    [Input('colFilterHist','value'),
+    Input('catFilterHist','value')]
+)
+def update_fig_hist(col,cat) :
+    jmlrow,jmlcol = subplots_hist[cat][0],subplots_hist[cat][1]
+    subtitles = ['All']
+    if(cat != 'All') :
+        subtitles = []
+        for item in dfPokemon[cat].unique() :
+            subtitles.append(str(item))
+
+    fig = tools.make_subplots(rows=jmlrow, 
+                            cols=jmlcol,
+                            subplot_titles=subtitles)
+    r,c = 1,1;
+    if(cat == 'All'):
+        fig.append_trace(
+             go.Histogram(
+                    x=dfPokemon[
+                        (dfPokemon[col] > (dfPokemon[col].mean() - 2 * dfPokemon[col].std()))
+                        & (dfPokemon[col] < (dfPokemon[col].mean() + 2 * dfPokemon[col].std()))
+                    ][col],
+                    marker=dict(
+                        color="green"
+                    ),
+                    name="Normal " + col,
+                    opacity=0.7
+                ),1,1
+        )
+        fig.append_trace(
+             go.Histogram(
+                x=dfPokemon[
+                    (dfPokemon[col] < (dfPokemon[col].mean() - 2 * dfPokemon[col].std()))
+                    | (dfPokemon[col] > (dfPokemon[col].mean() + 2 * dfPokemon[col].std()))
+                ][col],
+                marker=dict(
+                    color="red"
+                ),
+                name="Outlier " + col,
+                opacity=0.7
+            ),1,1
+        )
+        fig['layout']['xaxis'+str(1)].update(title=col.capitalize())
+        fig['layout']['yaxis'+str(1)].update(title='Total Pokemon')
+    else :
+        for item,index in zip(dfPokemon[cat].unique(), range(1, dfPokemon[cat].nunique()+1)) :
+            fig.append_trace(
+                go.Histogram(
+                        x=dfPokemon[
+                            (dfPokemon[cat] == item)
+                            & (dfPokemon[col] > (dfPokemon[col].mean() - 2 * dfPokemon[col].std()))
+                            & (dfPokemon[col] < (dfPokemon[col].mean() + 2 * dfPokemon[col].std()))
+                        ][col],
+                        marker=dict(
+                            color="green"
+                        ),
+                        name="Normal " + str(item) + " " + col,
+                        opacity=0.7
+                    ),r,c
+            )
+            fig.append_trace(
+                go.Histogram(
+                    x=dfPokemon[
+                        (dfPokemon[cat] == item)
+                        & ((dfPokemon[col] < (dfPokemon[col].mean() - 2 * dfPokemon[col].std()))
+                        | (dfPokemon[col] > (dfPokemon[col].mean() + 2 * dfPokemon[col].std())))
+                    ][col],
+                    marker=dict(
+                        color="red"
+                    ),
+                    name="Outlier " + str(item) + " " + col,
+                    opacity=0.7
+                ),r,c
+            )
+            fig['layout']['xaxis'+str(index)].update(title=col.capitalize())
+            fig['layout']['yaxis'+str(index)].update(title='Total Pokemon')
+            c += 1;
+            # sLegend = False;
+            if(c > jmlcol) :
+                c = 1;
+                r += 1;
+    if(cat == 'Generation') :
+        fig['layout'].update(height=700, width=1000,
+                            title='Histogram ' + col.capitalize())
+    else :
+        fig['layout'].update(height=450, width=1000,
+                            title='Histogram ' + col.capitalize())
+    return fig
 
 if __name__ == '__main__':
     app.run_server(debug=True,port=1997)
